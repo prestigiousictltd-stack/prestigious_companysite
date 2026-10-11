@@ -1,0 +1,105 @@
+# =====================================================================
+# Prestigious ICT Investment Limited — production image
+# PHP 8.2 + Apache, document root = project root (flattened layout)
+# =====================================================================
+
+FROM php:8.2-apache
+
+# ---------------------------------------------------------------------
+# 1. System packages
+# ---------------------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libzip-dev \
+        libpng-dev \
+        libjpeg-dev \
+        libwebp-dev \
+        libfreetype6-dev \
+        libonig-dev \
+        libxml2-dev \
+        unzip \
+        git \
+        curl \
+        default-mysql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------
+# 2. PHP extensions
+# ---------------------------------------------------------------------
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install -j$(nproc) \
+        pdo_mysql \
+        mbstring \
+        gd \
+        zip \
+        fileinfo \
+        opcache \
+        bcmath \
+        exif \
+        pcntl
+
+# ---------------------------------------------------------------------
+# 3. Apache configuration
+# ---------------------------------------------------------------------
+RUN a2enmod rewrite headers expires
+
+# Allow .htaccess overrides in the document root
+RUN sed -ri 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
+
+# Disable the default Apache index
+RUN echo 'DirectoryIndex index.php index.html' \
+      > /etc/apache2/conf-available/directory-index.conf \
+    && a2enconf directory-index
+
+# ---------------------------------------------------------------------
+# 4. Copy the project. Document root is /var/www/html
+#    which is already the php:8.2-apache default DocumentRoot.
+# ---------------------------------------------------------------------
+WORKDIR /var/www/html
+
+COPY . /var/www/html/
+
+# Ensure writable directories exist and have correct ownership
+RUN mkdir -p /var/www/html/logs \
+             /var/www/html/uploads/imports \
+             /var/www/html/uploads/exports \
+             /var/www/html/uploads/profiles \
+             /var/www/html/backups \
+    && chown -R www-data:www-data /var/www/html \
+    && find /var/www/html -type d -exec chmod 755 {} \; \
+    && find /var/www/html -type f -exec chmod 644 {} \; \
+    && chmod -R 775 /var/www/html/logs \
+                      /var/www/html/uploads \
+                      /var/www/html/backups
+
+# ---------------------------------------------------------------------
+# 5. PHP production settings
+# ---------------------------------------------------------------------
+RUN { \
+    echo 'memory_limit = 256M'; \
+    echo 'upload_max_filesize = 25M'; \
+    echo 'post_max_size = 25M'; \
+    echo 'max_execution_time = 120'; \
+    echo 'max_input_vars = 5000'; \
+    echo 'display_errors = Off'; \
+    echo 'log_errors = On'; \
+    echo 'error_log = /var/www/html/logs/php-error.log'; \
+    echo 'date.timezone = Africa/Lagos'; \
+    echo 'expose_php = Off'; \
+    echo 'session.use_strict_mode = 1'; \
+    echo 'session.use_only_cookies = 1'; \
+    echo 'session.cookie_httponly = 1'; \
+    echo 'session.cookie_samesite = Lax'; \
+    echo 'opcache.enable = 1'; \
+    echo 'opcache.memory_consumption = 128'; \
+    echo 'opcache.validate_timestamps = 0'; \
+} > /usr/local/etc/php/conf.d/zz-pict.ini
+
+# ---------------------------------------------------------------------
+# 6. Entrypoint — rewrites Apache's port to match Railway's $PORT
+# ---------------------------------------------------------------------
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["apache2-foreground"]

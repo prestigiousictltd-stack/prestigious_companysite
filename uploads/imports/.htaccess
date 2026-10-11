@@ -1,0 +1,10 @@
+# Prestigious ICT — CSV imports
+# Absolute deny. CSVs are served only through authorised PHP handlers.
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

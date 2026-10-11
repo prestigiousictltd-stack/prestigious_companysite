@@ -1,0 +1,16 @@
+# Prestigious ICT — cron directory
+# Scripts are invoked by CLI or by an authorised HTTP request with a token.
+# All other web access is denied.
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
+<FilesMatch "^(housekeeping|backup)\.php$">
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+</FilesMatch>

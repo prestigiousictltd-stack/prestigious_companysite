@@ -1,0 +1,28 @@
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+Thumbs.db
+*.log
+
+# Runtime directories — do not bake into the image
+logs/*
+!logs/.gitkeep
+backups/*
+!backups/.gitkeep
+uploads/imports/*
+!uploads/imports/.htaccess
+uploads/exports/*
+!uploads/exports/.htaccess
+uploads/profiles/*
+!uploads/profiles/.htaccess
+
+# Optional pages not yet implemented
+docs/*
+*.md
+!README.md
+
+# Local database files
+database/*.sql.bak
+database/backups/

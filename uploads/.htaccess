@@ -1,0 +1,36 @@
+# Prestigious ICT — uploads directory
+# Deny script execution everywhere. Only static files may be served, and only
+# from explicit subdirectories. CSV and export files must go through PHP.
+
+Options -Indexes
+
+# Block execution of any script-like extension regardless of subdirectory
+<FilesMatch "\.(php|phtml|php3|php4|php5|php7|php8|phps|phar|pl|py|jsp|asp|aspx|htm|html|shtml|sh|bash|cgi|exe)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Block dotfiles
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# By default deny everything. Subdirectories opt-in to specific allowances.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

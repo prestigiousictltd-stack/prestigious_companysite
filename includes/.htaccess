@@ -1,0 +1,10 @@
+# Prestigious ICT — includes directory
+# PHP includes are not web-accessible. Deny everything.
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

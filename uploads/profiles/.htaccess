@@ -1,0 +1,18 @@
+# Prestigious ICT — profile images
+# Allow read-only access to image files. No execution. No listing.
+
+Options -Indexes
+
+IfModule mod_authz_core.c
+    Require all denied
+IfModule
+
+FilesMatch .(jpgjpegpngwebpgif)$
+    IfModule mod_authz_core.c
+        Require all granted
+    IfModule
+    IfModule !mod_authz_core.c
+        Order allow,deny
+        Allow from all
+    IfModule
+FilesMatch

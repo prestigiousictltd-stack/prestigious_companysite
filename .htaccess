@@ -1,0 +1,57 @@
+# =====================================================================
+# Prestigious ICT — root .htaccess
+# Flattened layout: everything is under the document root.
+# =====================================================================
+
+Options -Indexes
+ServerSignature Off
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # ---- Deny direct access to sensitive directories ----------------
+    RewriteRule ^(config|includes|database|logs|backups|bootstrap|cron)(/|$) - [F,L]
+
+    # ---- Do not allow PHP files inside uploads/ to execute ----------
+    RewriteRule ^uploads/.*\.(php|phtml|phar|pl|py|cgi|sh)$ - [F,L]
+
+    # ---- Serve existing files and directories directly --------------
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # ---- Extensionless URLs: /services/nin-enrolment -> .php --------
+    RewriteCond %{REQUEST_FILENAME}\.php -f
+    RewriteRule ^(.*)$ $1.php [L,QSA]
+</IfModule>
+
+# ---- Block dotfiles and known-sensitive filenames -------------------
+<FilesMatch "(^\.|composer\.(json|lock)|package(-lock)?\.json|\.env|\.git|\.htpasswd|schema\.sql|seed\.sql)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ---- Global security headers ----------------------------------------
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# ---- Static asset caching -------------------------------------------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType font/woff2 "access plus 1 month"
+</IfModule>

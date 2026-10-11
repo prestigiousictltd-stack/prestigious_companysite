@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>/about-us</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>/services</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>/services/nin-enrolment</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>/services/nin-verification</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>/services/digital-services</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>/services/education-services</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>/services/technology-solutions</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>/partners</loc><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>/why-choose-us</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>/faq</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>/contact-us</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>/privacy-policy</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>/terms-and-conditions</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+</urlset>

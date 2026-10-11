@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /superadmin/
+Disallow: /partner/
+Disallow: /api/
+Disallow: /uploads/
+
+Sitemap: /sitemap.xml
