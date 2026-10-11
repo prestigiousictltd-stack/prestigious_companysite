@@ -15,6 +15,7 @@ mkdir -p /var/www/html/logs \
 chown -R www-data:www-data /var/www/html/logs \
                             /var/www/html/uploads \
                             /var/www/html/backups 2>/dev/null || true
-
+a2dismod -f mpm_event mpm_worker 2>/dev/null || true
+a2enmod mpm_prefork 2>/dev/null || true
 echo "Starting Apache on port ${PORT}"
 exec "$@"
