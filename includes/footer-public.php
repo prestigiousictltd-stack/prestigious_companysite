@@ -71,7 +71,8 @@
     </div>
 
     <div class="footer-bottom">
-      <div>&copy; <?= date('Y') ?> <?= e($companyName) ?>. All rights reserved.<br />DEVELOPED BY CYSTEMSGROUP@GMAIL.COM</div>
+      <div>&copy; <?= date('Y') ?> <?= e($companyName) ?>. All rights reserved.
+        <span>DEVELOPED BY CYSTEMSGROUP@GMAIL.COM</span></div>
       <div>
         <a href="./privacy-policy.php">Privacy Policy</a>
         &nbsp;·&nbsp;
