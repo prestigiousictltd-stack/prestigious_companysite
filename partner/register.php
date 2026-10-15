@@ -605,6 +605,26 @@ $navItems = [
 
 </main>
 
+  <?php
+// --- Guard: make sure partner_rules() returned the shape the modal expects.
+// If it didn't, log the real problem and fall back to a safe empty shape so
+// the modal still renders (and shows up in DevTools as #rules-modal).
+$rules = partner_rules();
+
+if (
+    !is_array($rules)
+    || !isset($rules['rules'])
+    || !is_array($rules['rules'])
+) {
+    error_log('[partner register] partner_rules() returned unexpected shape: ' . var_export($rules, true));
+    $rules = [
+        'title'       => 'Rules and Regulations',
+        'rules'       => [],
+        'declaration' => '',
+    ];
+}
+?>
+        
 <!-- RULES MODAL -->
 <div id="rules-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(15,23,42,.55)">
   <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(720px,92vw);max-height:86vh;background:#fff;border-radius:12px;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.4)">
