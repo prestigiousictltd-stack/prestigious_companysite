@@ -160,6 +160,19 @@ if (is_post()) {
         }
     }
 
+        // ---- Rules and Regulations consent ----
+    $rulesConsent     = (string) ($_POST['rules_consent'] ?? '');
+    $rulesModalAgreed = (string) ($_POST['rules_modal_agreed'] ?? '');
+    $rulesVersion     = (string) ($_POST['rules_version'] ?? '');
+    $rulesHash        = (string) ($_POST['rules_hash'] ?? '');
+
+    if ($rulesConsent !== '1') {
+        $errors['rules_consent'] = 'You must read and accept the 10 Rules and Regulations before registering.';
+    } elseif ($rulesModalAgreed !== '1') {
+        $errors['rules_consent'] = 'Please open the rules using the button above and click "I have read these rules".';
+    } elseif ($rulesVersion !== partner_rules_version() || $rulesHash !== partner_rules_hash()) {
+        $errors['rules_consent'] = 'The rules have been updated. Please open and read the current version, then try again.';
+    }
     if (!$errors) {
         try {
             db()->beginTransaction();
@@ -200,6 +213,18 @@ if (is_post()) {
                 ':ca'     => now_dt(),
             ]);
             $partnerId = (int) db()->lastInsertId();
+
+                        // Record the consent in the audit trail (existing table, no new schema).
+            audit_log(
+                'PARTNER_RULES_ACCEPTED',
+                'partners',
+                $partnerId,
+                'Accepted NIN Partner Rules v' . partner_rules_version()
+                    . ' (hash ' . substr(partner_rules_hash(), 0, 12) . '…)',
+                null,
+                null,
+                ['role' => 'PUBLIC', 'id' => null, 'label' => $data['email']]
+            );
             db()->commit();
 
             audit_log(
@@ -474,6 +499,51 @@ $navItems = [
           </div>
         </div>
 
+        <!-- RULES AND REGULATIONS CONSENT -->
+        <div class="reg-section" id="rules-consent-section">
+          <h2>Rules and Regulations <span style="color:#dc2626">*</span></h2>
+
+          <p style="font-size:14px;color:var(--text);margin:0 0 14px">
+            Every partner operating under
+            <strong><?= e((string) setting('company_name', 'Prestigious ICT Investment Limited')) ?></strong>
+            is required to read and accept the
+            <strong>10 Rules and Regulations Governing NIN Enrolment Partners</strong>
+            before registration.
+          </p>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+            <button type="button" class="btn btn-outline" id="open-rules-btn">
+              Read the 10 Rules and Regulations
+            </button>
+            <span class="muted" style="font-size:13px">
+              Version <?= e(partner_rules_version()) ?>
+              &middot; effective <?= e(partner_rules_effective_date()) ?>
+            </span>
+          </div>
+
+          <input type="hidden" name="rules_modal_agreed" id="rules_modal_agreed"
+                 value="<?= e(old('rules_modal_agreed')) ?>">
+          <input type="hidden" name="rules_version" value="<?= e(partner_rules_version()) ?>">
+          <input type="hidden" name="rules_hash"    value="<?= e(partner_rules_hash()) ?>">
+
+          <div class="form-group" style="margin:0">
+            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:14px;line-height:1.5">
+              <input type="checkbox" id="rules_consent" name="rules_consent" value="1"
+                     <?= old('rules_consent') === '1' ? 'checked' : '' ?>
+                     style="margin-top:3px;flex-shrink:0">
+              <span>
+                I confirm that I have read, understood, and agree to the
+                10 Rules and Regulations Governing NIN Enrolment Partners.
+                I understand that failure to comply may result in action
+                under the partnership agreement and applicable law.
+              </span>
+            </label>
+            <?php if (!empty($errors['rules_consent'])): ?>
+              <div class="alert alert-danger" style="margin:8px 0 0"><?= e($errors['rules_consent']) ?></div>
+            <?php endif; ?>
+          </div>
+        </div>
+            
         <div class="reg-section" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
           <div>
             <p style="margin:0;font-size:13.5px;color:var(--muted)">By registering you agree to our <a href="../terms-and-conditions.php">Terms</a> and <a href="../privacy-policy.php">Privacy Policy</a>.</p>
@@ -535,6 +605,93 @@ $navItems = [
 
 </main>
 
+<!-- RULES MODAL -->
+<div id="rules-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(15,23,42,.55)">
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(720px,92vw);max-height:86vh;background:#fff;border-radius:12px;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.4)">
+    <div style="padding:18px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <h2 style="margin:0;font-size:17px"><?= e(partner_rules()['title']) ?></h2>
+      <button type="button" id="rules-close-x"
+              style="border:0;background:transparent;font-size:24px;line-height:1;cursor:pointer;color:#6b7280"
+              aria-label="Close">&times;</button>
+    </div>
+
+    <div id="rules-body" style="padding:20px 24px;overflow-y:auto;flex:1">
+      <p style="font-size:13.5px;color:#6b7280;margin:0 0 20px">
+        Version <?= e(partner_rules_version()) ?>
+        &middot; effective <?= e(partner_rules_effective_date()) ?>
+      </p>
+
+      <?php foreach (partner_rules()['rules'] as $rule): ?>
+        <div style="margin-bottom:18px">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <span style="flex-shrink:0;width:28px;height:28px;border-radius:50%;background:#0b5ed7;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center">
+              <?= (int) $rule['n'] ?>
+            </span>
+            <div>
+              <div style="font-weight:700;color:#0f172a;margin-bottom:4px"><?= e($rule['title']) ?></div>
+              <div style="font-size:14px;color:#374151;line-height:1.6"><?= e($rule['body']) ?></div>
+            </div>
+          </div>
+        </div>
+      <?php endforeach; ?>
+
+      <div style="margin-top:24px;padding:14px 16px;background:#f7f9fc;border-left:3px solid #0b5ed7;border-radius:6px;font-size:13.5px;color:#374151;line-height:1.65">
+        <strong style="color:#0f172a">Declaration of compliance.</strong>
+        <?= e(partner_rules()['declaration']) ?>
+      </div>
+    </div>
+
+    <div style="padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap">
+      <button type="button" id="rules-close-btn" class="btn btn-outline">Close</button>
+      <button type="button" id="rules-agree-btn" class="btn btn-primary">
+        I have read these rules &mdash; enable consent
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal        = document.getElementById('rules-modal');
+  var openBtn      = document.getElementById('open-rules-btn');
+  var closeX       = document.getElementById('rules-close-x');
+  var closeBtn     = document.getElementById('rules-close-btn');
+  var agreeBtn     = document.getElementById('rules-agree-btn');
+  var hiddenAgreed = document.getElementById('rules_modal_agreed');
+  var checkbox     = document.getElementById('rules_consent');
+  if (!modal || !openBtn) return;
+
+  function showModal() {
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+    document.getElementById('rules-body').scrollTop = 0;
+  }
+  function hideModal() {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  openBtn.addEventListener('click', showModal);
+  closeX.addEventListener('click', hideModal);
+  closeBtn.addEventListener('click', hideModal);
+  modal.addEventListener('click', function (e) { if (e.target === modal) hideModal(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal.style.display === 'block') hideModal();
+  });
+
+  agreeBtn.addEventListener('click', function () {
+    hiddenAgreed.value = '1';
+    if (checkbox) { checkbox.disabled = false; checkbox.checked = true; checkbox.focus(); }
+    hideModal();
+  });
+
+  // Checkbox stays disabled until the user has opened the modal and agreed
+  if (hiddenAgreed.value !== '1' && checkbox) {
+    checkbox.disabled = true;
+  }
+})();
+</script>
+          
 <footer class="site-footer">
   <div class="container">
     <div class="footer-grid">
