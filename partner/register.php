@@ -26,24 +26,24 @@ if (is_post()) {
     csrf_require();
 
     $data = [
-    'full_name'           => trim((string) ($_POST['full_name'] ?? '')),
-    'email'               => strtolower(trim((string) ($_POST['email'] ?? ''))),
-    'phone'               => trim((string) ($_POST['phone'] ?? '')),
-    'nin_number'          => preg_replace('/\D/', '', (string) ($_POST['nin_number'] ?? '')),
-    'partner_type'        => strtoupper((string) ($_POST['partner_type'] ?? 'INDIVIDUAL')),
-    'business_name'       => trim((string) ($_POST['business_name'] ?? '')),
-    'address'             => trim((string) ($_POST['address'] ?? '')),
-    'state_id'            => (int) ($_POST['state_id'] ?? 0),
-    'lga_id'              => (int) ($_POST['lga_id'] ?? 0),
-    'password'            => (string) ($_POST['password'] ?? ''),
-    'password_confirmation' => (string) ($_POST['password_confirmation'] ?? ''),
-];
+        'full_name'             => trim((string) ($_POST['full_name'] ?? '')),
+        'email'                 => strtolower(trim((string) ($_POST['email'] ?? ''))),
+        'phone'                 => trim((string) ($_POST['phone'] ?? '')),
+        'nin_number'            => preg_replace('/\D/', '', (string) ($_POST['nin_number'] ?? '')),
+        'partner_type'          => strtoupper((string) ($_POST['partner_type'] ?? 'INDIVIDUAL')),
+        'business_name'         => trim((string) ($_POST['business_name'] ?? '')),
+        'address'               => trim((string) ($_POST['address'] ?? '')),
+        'state_id'              => (int) ($_POST['state_id'] ?? 0),
+        'lga_id'                => (int) ($_POST['lga_id'] ?? 0),
+        'password'              => (string) ($_POST['password'] ?? ''),
+        'password_confirmation' => (string) ($_POST['password_confirmation'] ?? ''),
+    ];
 
     if (!in_array($data['partner_type'], ['INDIVIDUAL', 'BUSINESS'], true)) {
         $data['partner_type'] = 'INDIVIDUAL';
     }
 
-        $errors = validate($data, [
+    $errors = validate($data, [
         'full_name'             => ['required', 'min_len:2', 'max_len:150'],
         'email'                 => ['required', 'email', 'max_len:190'],
         'phone'                 => ['required', 'phone_ng', 'max_len:20'],
@@ -56,16 +56,20 @@ if (is_post()) {
         'password'              => ['required', 'password', 'same:password_confirmation'],
         'password_confirmation' => ['required'],
     ], [
-        'full_name' => 'Full Name', 'email' => 'Email Address', 'phone' => 'Phone Number',
-        'nin_number' => 'NIN Number', 'state_id' => 'State', 'lga_id' => 'LGA',
-        'password' => 'Password',
+        'full_name'   => 'Full Name',
+        'email'       => 'Email Address',
+        'phone'       => 'Phone Number',
+        'nin_number'  => 'NIN Number',
+        'state_id'    => 'State',
+        'lga_id'      => 'LGA',
+        'password'    => 'Password',
     ]);
 
     if ($data['partner_type'] === 'BUSINESS' && $data['business_name'] === '') {
         $errors['business_name'] = 'Business Name is required for business partners.';
     }
 
-       // Verify state / lga relationship — only when an LGA was actually chosen.
+    // Verify state / lga relationship — only when an LGA was actually chosen.
     if (empty($errors['state_id']) && $data['lga_id'] > 0) {
         $stmt = db()->prepare('SELECT 1 FROM lgas WHERE id = :lid AND state_id = :sid AND is_active = 1 LIMIT 1');
         $stmt->execute([':lid' => $data['lga_id'], ':sid' => $data['state_id']]);
@@ -90,7 +94,7 @@ if (is_post()) {
         }
     }
 
-      // Required profile image
+    // Required profile image
     $profileImagePath = null;
     $file = $_FILES['profile_image'] ?? null;
     $hasFile = is_array($file) && (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
@@ -136,7 +140,6 @@ if (is_post()) {
                     if ($mime !== $allowedExt[$ext]) {
                         $errors['profile_image'] = 'File type does not match the file extension.';
                     } else {
-                        // Basic image dimension sanity check
                         $dimInfo = @getimagesize((string) $file['tmp_name']);
                         if ($dimInfo === false) {
                             $errors['profile_image'] = 'File is not a readable image.';
@@ -195,7 +198,7 @@ if (is_post()) {
                 ':addr'   => $data['address'] !== '' ? $data['address'] : null,
                 ':img'    => $profileImagePath,
                 ':sid'    => $data['state_id'],
-                               ':lid'    => $data['lga_id'] > 0 ? $data['lga_id'] : null,
+                ':lid'    => $data['lga_id'] > 0 ? $data['lga_id'] : null,
                 ':status' => 'PENDING',
                 ':ca'     => now_dt(),
             ]);
@@ -240,11 +243,32 @@ if (is_post()) {
     flash_old($_POST);
 }
 
+// Safe-load partner_rules() BEFORE any HTML output so a TypeError can never
+// truncate the page or hide the modal. Client-side only — nothing is submitted.
+$rules = null;
+try {
+    $candidate = partner_rules();
+    if (
+        is_array($candidate)
+        && array_key_exists('title', $candidate)
+        && isset($candidate['rules']) && is_array($candidate['rules'])
+        && array_key_exists('declaration', $candidate)
+    ) {
+        $rules = $candidate;
+    } else {
+        error_log('[partner register] partner_rules() bad shape: ' . var_export($candidate, true));
+    }
+} catch (\Throwable $ex) {
+    error_log('[partner register] partner_rules() threw: ' . $ex->getMessage());
+}
+
+if ($rules === null) {
+    $rules = ['title' => 'Rules and Regulations', 'rules' => [], 'declaration' => ''];
+}
+
 $page_title       = 'Become a Partner';
 $page_description = 'Register as a partner of Prestigious ICT Investment Limited.';
 $active_nav       = 'partners';
-
-
 
 /**
  * Public site header.
@@ -293,6 +317,23 @@ $navItems = [
 <link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
 
 <link rel="stylesheet" href="<?= e(url('/assets/css/public.css')) ?>">
+
+<style>
+/* Contrast fix for the rules button on the silver page background */
+#open-rules-btn {
+    background-color: #ffffff;
+    color: #0b5ed7;
+    border: 2px solid #0b5ed7;
+    font-weight: 600;
+}
+#open-rules-btn:hover,
+#open-rules-btn:focus-visible {
+    background-color: #0b5ed7;
+    color: #ffffff;
+    outline: 3px solid #93c5fd;
+    outline-offset: 2px;
+}
+</style>
 </head>
 <body>
 
@@ -348,8 +389,6 @@ $navItems = [
 <?php endif; ?>
 
 <main>
- <script src="<?= e(url('/assets/js/public.js')) ?>"></script>
-
 
 <section class="page-head">
   <div class="container">
@@ -410,7 +449,7 @@ $navItems = [
               </select>
               <?php if (!empty($errors['state_id'])): ?><div class="alert alert-danger" style="margin:6px 0 0"><?= e($errors['state_id']) ?></div><?php endif; ?>
             </div>
-                       <div class="form-group">
+            <div class="form-group">
               <label class="form-label" for="lga_id">LGA <span class="muted" style="font-weight:400;font-size:12px">(optional)</span></label>
               <select class="form-control" id="lga_id" name="lga_id"
                       data-selected="<?= ctype_digit((string) old('lga_id')) ? (int) old('lga_id') : '' ?>">
@@ -419,10 +458,7 @@ $navItems = [
               <?php if (!empty($errors['lga_id'])): ?><div class="alert alert-danger" style="margin:6px 0 0"><?= e($errors['lga_id']) ?></div><?php endif; ?>
             </div>
 
-          <!-- HIDDEN: Business registration is temporarily disabled. Only
-               Individual is presented to the registrant. To re-enable later,
-               remove the style="display:none" attribute on this row and
-               restore the BUSINESS option below. -->
+          <!-- HIDDEN: Business registration is temporarily disabled. -->
           <div class="form-row" style="display:none">
             <div class="form-group">
               <label class="form-label" for="partner_type">Partner Type</label>
@@ -442,35 +478,76 @@ $navItems = [
             <?php if (!empty($errors['address'])): ?><div class="alert alert-danger" style="margin:6px 0 0"><?= e($errors['address']) ?></div><?php endif; ?>
           </div>
 
-                    <div class="form-group">
+          <div class="form-group">
             <label class="form-label" for="profile_image">Profile Image <span class="req">*</span></label>
             <input class="form-control" type="file" id="profile_image" name="profile_image"
                    accept="image/jpeg,image/png,image/webp" required>
-                        <div class="form-hint">
+            <div class="form-hint">
               JPG, PNG or WEBP. Required — this is used to verify your identity during approval.
               Maximum size: <?= (int) setting('upload_max_size_mb', 2) ?> MB
               (also limited by the server to <?= e((string) min(
                   (int) ini_get('upload_max_filesize'),
                   (int) ini_get('post_max_size')
               )) ?> MB).
-            </div> <?php if (!empty($errors['profile_image'])): ?>
+            </div>
+            <?php if (!empty($errors['profile_image'])): ?>
               <div class="alert alert-danger" style="margin:6px 0 0"><?= e($errors['profile_image']) ?></div>
             <?php endif; ?>
           </div>
-</div>
+        </div>
+
         <div class="reg-section">
           <h2>Account Security</h2>
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="password">Password <span class="req">*</span></label>
-              <input class="form-control" type="password" id="password" name="password" required >
+              <input class="form-control" type="password" id="password" name="password" required>
               <div class="form-hint">Minimum <?= (int) setting('security_password_min_length', 8) ?> characters, with upper case, lower case and a number.</div>
               <?php if (!empty($errors['password'])): ?><div class="alert alert-danger" style="margin:6px 0 0"><?= e($errors['password']) ?></div><?php endif; ?>
             </div>
             <div class="form-group">
               <label class="form-label" for="password_confirmation">Confirm Password <span class="req">*</span></label>
-              <input class="form-control" type="password" id="password_confirmation" name="password_confirmation" required >
+              <input class="form-control" type="password" id="password_confirmation" name="password_confirmation" required>
             </div>
+          </div>
+        </div>
+
+        <!-- Rules and Regulations — client-side UX only. Nothing here is
+             validated or stored on the server. -->
+        <div class="reg-section" id="rules-consent-section">
+          <h2>Rules and Regulations <span style="color:#dc2626">*</span></h2>
+
+          <p style="font-size:14px;color:var(--text);margin:0 0 14px">
+            Every partner operating under
+            <strong><?= e((string) setting('company_name', 'Prestigious ICT Investment Limited')) ?></strong>
+            is required to read and accept the
+            <strong>10 Rules and Regulations Governing NIN Enrolment Partners</strong>
+            before registration.
+          </p>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+            <button type="button" class="btn btn-outline" id="open-rules-btn">
+              Read the 10 Rules and Regulations
+            </button>
+            <span class="muted" style="font-size:13px">
+              Version <?= e(partner_rules_version()) ?>
+              &middot; effective <?= e(partner_rules_effective_date()) ?>
+            </span>
+          </div>
+
+          <input type="hidden" id="rules_modal_agreed" value="">
+
+          <div class="form-group" style="margin:0">
+            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:14px;line-height:1.5">
+              <input type="checkbox" id="rules_consent" value="1"
+                     style="margin-top:3px;flex-shrink:0">
+              <span>
+                I confirm that I have read, understood, and agree to the
+                10 Rules and Regulations Governing NIN Enrolment Partners.
+                I understand that failure to comply may result in action
+                under the partnership agreement and applicable law.
+              </span>
+            </label>
           </div>
         </div>
 
@@ -489,6 +566,7 @@ $navItems = [
   </div>
 </section>
 
+<!-- Your existing LGA / partner-type script, unchanged -->
 <script>
 (function(){
   var stateSel = document.getElementById('state_id');
@@ -502,7 +580,7 @@ $navItems = [
       lgaSel.innerHTML = '<option value="">— Select State first —</option>';
       return;
     }
-   fetch(<?= json_encode(root_url('/api/lgas.php')) ?> + '?state_id=' + encodeURIComponent(stateId))
+    fetch(<?= json_encode(root_url('/api/lgas.php')) ?> + '?state_id=' + encodeURIComponent(stateId))
       .then(function(r){ return r.json(); })
       .then(function(data){
         if (!data.ok) { lgaSel.innerHTML = '<option value="">— Unavailable —</option>'; return; }
@@ -534,6 +612,121 @@ $navItems = [
 </script>
 
 </main>
+
+<!-- Rules modal — placed outside the form, after </main> -->
+<div id="rules-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(15,23,42,.55)">
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(720px,92vw);max-height:86vh;background:#fff;border-radius:12px;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.4)">
+    <div style="padding:18px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <h2 style="margin:0;font-size:17px"><?= e($rules['title']) ?></h2>
+      <button type="button" id="rules-close-x"
+              style="border:0;background:transparent;font-size:24px;line-height:1;cursor:pointer;color:#6b7280"
+              aria-label="Close">&times;</button>
+    </div>
+
+    <div id="rules-body" style="padding:20px 24px;overflow-y:auto;flex:1">
+      <p style="font-size:13.5px;color:#6b7280;margin:0 0 20px">
+        Version <?= e(partner_rules_version()) ?>
+        &middot; effective <?= e(partner_rules_effective_date()) ?>
+      </p>
+
+      <?php if (empty($rules['rules'])): ?>
+        <p style="color:#b91c1c;font-size:14px">
+          The rules could not be loaded. Please contact support before proceeding.
+        </p>
+      <?php else: ?>
+        <?php foreach ($rules['rules'] as $rule): ?>
+          <div style="margin-bottom:18px">
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <span style="flex-shrink:0;width:28px;height:28px;border-radius:50%;background:#0b5ed7;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center">
+                <?= (int) $rule['n'] ?>
+              </span>
+              <div>
+                <div style="font-weight:700;color:#0f172a;margin-bottom:4px"><?= e($rule['title']) ?></div>
+                <div style="font-size:14px;color:#374151;line-height:1.6"><?= e($rule['body']) ?></div>
+              </div>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
+
+      <?php if ($rules['declaration'] !== ''): ?>
+        <div style="margin-top:24px;padding:14px 16px;background:#f7f9fc;border-left:3px solid #0b5ed7;border-radius:6px;font-size:13.5px;color:#374151;line-height:1.65">
+          <strong style="color:#0f172a">Declaration of compliance.</strong>
+          <?= e($rules['declaration']) ?>
+        </div>
+      <?php endif; ?>
+    </div>
+
+    <div style="padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap">
+      <button type="button" id="rules-close-btn" class="btn btn-outline">Close</button>
+      <button type="button" id="rules-agree-btn" class="btn btn-primary">
+        I have read these rules &mdash; enable consent
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var modal        = document.getElementById('rules-modal');
+  var openBtn      = document.getElementById('open-rules-btn');
+  var hiddenAgreed = document.getElementById('rules_modal_agreed');
+  var checkbox     = document.getElementById('rules_consent');
+  var rulesBody    = document.getElementById('rules-body');
+
+  if (!modal || !openBtn) return;
+
+  function showModal() {
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+    if (rulesBody) rulesBody.scrollTop = 0;
+  }
+  function hideModal() {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  // Event delegation on document — immune to any other script that might
+  // stopPropagation on clicks.
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+
+    if (t.closest('#open-rules-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      showModal();
+      return;
+    }
+    if (t.closest('#rules-close-x') || t.closest('#rules-close-btn')) {
+      e.preventDefault();
+      hideModal();
+      return;
+    }
+    if (t.closest('#rules-agree-btn')) {
+      e.preventDefault();
+      if (hiddenAgreed) hiddenAgreed.value = '1';
+      if (checkbox) {
+        checkbox.disabled = false;
+        checkbox.checked  = true;
+        checkbox.focus();
+      }
+      hideModal();
+      return;
+    }
+    if (t === modal) { hideModal(); }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal.style.display === 'block') hideModal();
+  });
+
+  // Lock the consent checkbox until the user has opened the modal and agreed.
+  if (hiddenAgreed && hiddenAgreed.value !== '1' && checkbox) {
+    checkbox.disabled = true;
+  }
+});
+</script>
 
 <footer class="site-footer">
   <div class="container">
