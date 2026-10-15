@@ -651,7 +651,7 @@ $navItems = [
 </div>
 
 <script>
-(function () {
+document.addEventListener('DOMContentLoaded', function () {
   var modal        = document.getElementById('rules-modal');
   var openBtn      = document.getElementById('open-rules-btn');
   var closeX       = document.getElementById('rules-close-x');
@@ -659,37 +659,62 @@ $navItems = [
   var agreeBtn     = document.getElementById('rules-agree-btn');
   var hiddenAgreed = document.getElementById('rules_modal_agreed');
   var checkbox     = document.getElementById('rules_consent');
-  if (!modal || !openBtn) return;
+  var rulesBody    = document.getElementById('rules-body');
+
+  console.log('[rules-modal] elements', { modal:!!modal, openBtn:!!openBtn, closeX:!!closeX,
+                                          closeBtn:!!closeBtn, agreeBtn:!!agreeBtn });
+
+  if (!modal || !openBtn) return; // nothing to wire up
 
   function showModal() {
     modal.style.display = 'block';
     document.body.style.overflow = 'hidden';
-    document.getElementById('rules-body').scrollTop = 0;
+    if (rulesBody) rulesBody.scrollTop = 0;
   }
   function hideModal() {
     modal.style.display = 'none';
     document.body.style.overflow = '';
   }
 
-  openBtn.addEventListener('click', showModal);
-  closeX.addEventListener('click', hideModal);
-  closeBtn.addEventListener('click', hideModal);
-  modal.addEventListener('click', function (e) { if (e.target === modal) hideModal(); });
+  // Use event delegation on document so nothing upstream can swallow the click.
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+
+    if (t.closest('#open-rules-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      showModal();
+      return;
+    }
+    if (t.closest('#rules-close-x') || t.closest('#rules-close-btn')) {
+      e.preventDefault();
+      hideModal();
+      return;
+    }
+    if (t.closest('#rules-agree-btn')) {
+      e.preventDefault();
+      if (hiddenAgreed) hiddenAgreed.value = '1';
+      if (checkbox) {
+        checkbox.disabled = false;
+        checkbox.checked  = true;
+        checkbox.focus();
+      }
+      hideModal();
+      return;
+    }
+    if (t === modal) { hideModal(); }
+  });
+
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && modal.style.display === 'block') hideModal();
   });
 
-  agreeBtn.addEventListener('click', function () {
-    hiddenAgreed.value = '1';
-    if (checkbox) { checkbox.disabled = false; checkbox.checked = true; checkbox.focus(); }
-    hideModal();
-  });
-
-  // Checkbox stays disabled until the user has opened the modal and agreed
-  if (hiddenAgreed.value !== '1' && checkbox) {
+  // Lock the consent checkbox until the user opens the modal and agrees.
+  if (hiddenAgreed && hiddenAgreed.value !== '1' && checkbox) {
     checkbox.disabled = true;
   }
-})();
+});
 </script>
           
 <footer class="site-footer">
