@@ -26,24 +26,24 @@ if (is_post()) {
     csrf_require();
 
     $data = [
-    'full_name'           => trim((string) ($_POST['full_name'] ?? '')),
-    'email'               => strtolower(trim((string) ($_POST['email'] ?? ''))),
-    'phone'               => trim((string) ($_POST['phone'] ?? '')),
-    'nin_number'          => preg_replace('/\D/', '', (string) ($_POST['nin_number'] ?? '')),
-    'partner_type'        => strtoupper((string) ($_POST['partner_type'] ?? 'INDIVIDUAL')),
-    'business_name'       => trim((string) ($_POST['business_name'] ?? '')),
-    'address'             => trim((string) ($_POST['address'] ?? '')),
-    'state_id'            => (int) ($_POST['state_id'] ?? 0),
-    'lga_id'              => (int) ($_POST['lga_id'] ?? 0),
-    'password'            => (string) ($_POST['password'] ?? ''),
-    'password_confirmation' => (string) ($_POST['password_confirmation'] ?? ''),
-];
+        'full_name'             => trim((string) ($_POST['full_name'] ?? '')),
+        'email'                 => strtolower(trim((string) ($_POST['email'] ?? ''))),
+        'phone'                 => trim((string) ($_POST['phone'] ?? '')),
+        'nin_number'            => preg_replace('/\D/', '', (string) ($_POST['nin_number'] ?? '')),
+        'partner_type'          => strtoupper((string) ($_POST['partner_type'] ?? 'INDIVIDUAL')),
+        'business_name'         => trim((string) ($_POST['business_name'] ?? '')),
+        'address'               => trim((string) ($_POST['address'] ?? '')),
+        'state_id'              => (int) ($_POST['state_id'] ?? 0),
+        'lga_id'                => (int) ($_POST['lga_id'] ?? 0),
+        'password'              => (string) ($_POST['password'] ?? ''),
+        'password_confirmation' => (string) ($_POST['password_confirmation'] ?? ''),
+    ];
 
     if (!in_array($data['partner_type'], ['INDIVIDUAL', 'BUSINESS'], true)) {
         $data['partner_type'] = 'INDIVIDUAL';
     }
 
-        $errors = validate($data, [
+    $errors = validate($data, [
         'full_name'             => ['required', 'min_len:2', 'max_len:150'],
         'email'                 => ['required', 'email', 'max_len:190'],
         'phone'                 => ['required', 'phone_ng', 'max_len:20'],
@@ -56,16 +56,20 @@ if (is_post()) {
         'password'              => ['required', 'password', 'same:password_confirmation'],
         'password_confirmation' => ['required'],
     ], [
-        'full_name' => 'Full Name', 'email' => 'Email Address', 'phone' => 'Phone Number',
-        'nin_number' => 'NIN Number', 'state_id' => 'State', 'lga_id' => 'LGA',
-        'password' => 'Password',
+        'full_name'   => 'Full Name',
+        'email'       => 'Email Address',
+        'phone'       => 'Phone Number',
+        'nin_number'  => 'NIN Number',
+        'state_id'    => 'State',
+        'lga_id'      => 'LGA',
+        'password'    => 'Password',
     ]);
 
     if ($data['partner_type'] === 'BUSINESS' && $data['business_name'] === '') {
         $errors['business_name'] = 'Business Name is required for business partners.';
     }
 
-       // Verify state / lga relationship — only when an LGA was actually chosen.
+    // Verify state / lga relationship — only when an LGA was actually chosen.
     if (empty($errors['state_id']) && $data['lga_id'] > 0) {
         $stmt = db()->prepare('SELECT 1 FROM lgas WHERE id = :lid AND state_id = :sid AND is_active = 1 LIMIT 1');
         $stmt->execute([':lid' => $data['lga_id'], ':sid' => $data['state_id']]);
@@ -90,7 +94,7 @@ if (is_post()) {
         }
     }
 
-      // Required profile image
+    // Required profile image
     $profileImagePath = null;
     $file = $_FILES['profile_image'] ?? null;
     $hasFile = is_array($file) && (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
@@ -160,7 +164,7 @@ if (is_post()) {
         }
     }
 
-        // ---- Rules and Regulations consent ----
+    // ---- Rules and Regulations consent ----
     $rulesConsent     = (string) ($_POST['rules_consent'] ?? '');
     $rulesModalAgreed = (string) ($_POST['rules_modal_agreed'] ?? '');
     $rulesVersion     = (string) ($_POST['rules_version'] ?? '');
@@ -173,6 +177,7 @@ if (is_post()) {
     } elseif ($rulesVersion !== partner_rules_version() || $rulesHash !== partner_rules_hash()) {
         $errors['rules_consent'] = 'The rules have been updated. Please open and read the current version, then try again.';
     }
+
     if (!$errors) {
         try {
             db()->beginTransaction();
@@ -208,13 +213,13 @@ if (is_post()) {
                 ':addr'   => $data['address'] !== '' ? $data['address'] : null,
                 ':img'    => $profileImagePath,
                 ':sid'    => $data['state_id'],
-                               ':lid'    => $data['lga_id'] > 0 ? $data['lga_id'] : null,
+                ':lid'    => $data['lga_id'] > 0 ? $data['lga_id'] : null,
                 ':status' => 'PENDING',
                 ':ca'     => now_dt(),
             ]);
             $partnerId = (int) db()->lastInsertId();
 
-                        // Record the consent in the audit trail (existing table, no new schema).
+            // Record the consent in the audit trail (existing table, no new schema).
             audit_log(
                 'PARTNER_RULES_ACCEPTED',
                 'partners',
@@ -265,11 +270,35 @@ if (is_post()) {
     flash_old($_POST);
 }
 
+/* =========================================================
+ * FIX #1 — Pre-load and guard partner_rules() BEFORE any
+ * HTML is emitted. Any TypeError/exception here is caught so
+ * the rest of the page (modal + footer) still renders.
+ * ========================================================= */
+$rules = null;
+try {
+    $candidate = partner_rules();
+    if (
+        is_array($candidate)
+        && array_key_exists('title', $candidate)
+        && isset($candidate['rules']) && is_array($candidate['rules'])
+        && array_key_exists('declaration', $candidate)
+    ) {
+        $rules = $candidate;
+    } else {
+        error_log('[partner register] partner_rules() bad shape: ' . var_export($candidate, true));
+    }
+} catch (\Throwable $ex) {
+    error_log('[partner register] partner_rules() threw: ' . $ex->getMessage());
+}
+
+if ($rules === null) {
+    $rules = ['title' => 'Rules and Regulations', 'rules' => [], 'declaration' => ''];
+}
+
 $page_title       = 'Become a Partner';
 $page_description = 'Register as a partner of Prestigious ICT Investment Limited.';
 $active_nav       = 'partners';
-
-
 
 /**
  * Public site header.
@@ -318,6 +347,24 @@ $navItems = [
 <link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
 
 <link rel="stylesheet" href="<?= e(url('/assets/css/public.css')) ?>">
+
+<!-- FIX #2 — Extra safety net for the rules button in case the
+     .btn-outline class has poor contrast on this page. -->
+<style>
+#open-rules-btn {
+    background-color: #ffffff;
+    color: #0b5ed7;
+    border: 2px solid #0b5ed7;
+    font-weight: 600;
+}
+#open-rules-btn:hover,
+#open-rules-btn:focus-visible {
+    background-color: #0b5ed7;
+    color: #ffffff;
+    outline: 3px solid #93c5fd;
+    outline-offset: 2px;
+}
+</style>
 </head>
 <body>
 
@@ -373,8 +420,10 @@ $navItems = [
 <?php endif; ?>
 
 <main>
- <script src="<?= e(url('/assets/js/public.js')) ?>"></script>
-
+<!-- FIX #3 — Removed the stray <script src="public.js"> that used to live
+     here. It was running against a half-built DOM and was the most likely
+     cause of the modal never rendering. public.js is loaded at the
+     bottom of <body>, which is the correct place. -->
 
 <section class="page-head">
   <div class="container">
@@ -435,7 +484,7 @@ $navItems = [
               </select>
               <?php if (!empty($errors['state_id'])): ?><div class="alert alert-danger" style="margin:6px 0 0"><?= e($errors['state_id']) ?></div><?php endif; ?>
             </div>
-                       <div class="form-group">
+            <div class="form-group">
               <label class="form-label" for="lga_id">LGA <span class="muted" style="font-weight:400;font-size:12px">(optional)</span></label>
               <select class="form-control" id="lga_id" name="lga_id"
                       data-selected="<?= ctype_digit((string) old('lga_id')) ? (int) old('lga_id') : '' ?>">
@@ -467,22 +516,24 @@ $navItems = [
             <?php if (!empty($errors['address'])): ?><div class="alert alert-danger" style="margin:6px 0 0"><?= e($errors['address']) ?></div><?php endif; ?>
           </div>
 
-                    <div class="form-group">
+          <div class="form-group">
             <label class="form-label" for="profile_image">Profile Image <span class="req">*</span></label>
             <input class="form-control" type="file" id="profile_image" name="profile_image"
                    accept="image/jpeg,image/png,image/webp" required>
-                        <div class="form-hint">
+            <div class="form-hint">
               JPG, PNG or WEBP. Required — this is used to verify your identity during approval.
               Maximum size: <?= (int) setting('upload_max_size_mb', 2) ?> MB
               (also limited by the server to <?= e((string) min(
                   (int) ini_get('upload_max_filesize'),
                   (int) ini_get('post_max_size')
               )) ?> MB).
-            </div> <?php if (!empty($errors['profile_image'])): ?>
+            </div>
+            <?php if (!empty($errors['profile_image'])): ?>
               <div class="alert alert-danger" style="margin:6px 0 0"><?= e($errors['profile_image']) ?></div>
             <?php endif; ?>
           </div>
-</div>
+        </div>
+
         <div class="reg-section">
           <h2>Account Security</h2>
           <div class="form-row">
@@ -543,7 +594,7 @@ $navItems = [
             <?php endif; ?>
           </div>
         </div>
-            
+
         <div class="reg-section" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
           <div>
             <p style="margin:0;font-size:13.5px;color:var(--muted)">By registering you agree to our <a href="../terms-and-conditions.php">Terms</a> and <a href="../privacy-policy.php">Privacy Policy</a>.</p>
@@ -572,7 +623,7 @@ $navItems = [
       lgaSel.innerHTML = '<option value="">— Select State first —</option>';
       return;
     }
-   fetch(<?= json_encode(root_url('/api/lgas.php')) ?> + '?state_id=' + encodeURIComponent(stateId))
+    fetch(<?= json_encode(root_url('/api/lgas.php')) ?> + '?state_id=' + encodeURIComponent(stateId))
       .then(function(r){ return r.json(); })
       .then(function(data){
         if (!data.ok) { lgaSel.innerHTML = '<option value="">— Unavailable —</option>'; return; }
@@ -605,31 +656,13 @@ $navItems = [
 
 </main>
 
-  <?php
-// --- Guard: make sure partner_rules() returned the shape the modal expects.
-// If it didn't, log the real problem and fall back to a safe empty shape so
-// the modal still renders (and shows up in DevTools as #rules-modal).
-$rules = partner_rules();
-
-if (
-    !is_array($rules)
-    || !isset($rules['rules'])
-    || !is_array($rules['rules'])
-) {
-    error_log('[partner register] partner_rules() returned unexpected shape: ' . var_export($rules, true));
-    $rules = [
-        'title'       => 'Rules and Regulations',
-        'rules'       => [],
-        'declaration' => '',
-    ];
-}
-?>
-        
-<!-- RULES MODAL -->
+<!-- RULES MODAL (FIX #4 — all partner_rules() lookups inside this block
+     now use the pre-guarded $rules variable, so a broken partner_rules()
+     can no longer kill the modal's rendering) -->
 <div id="rules-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(15,23,42,.55)">
   <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(720px,92vw);max-height:86vh;background:#fff;border-radius:12px;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.4)">
     <div style="padding:18px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;gap:12px">
-      <h2 style="margin:0;font-size:17px"><?= e(partner_rules()['title']) ?></h2>
+      <h2 style="margin:0;font-size:17px"><?= e($rules['title']) ?></h2>
       <button type="button" id="rules-close-x"
               style="border:0;background:transparent;font-size:24px;line-height:1;cursor:pointer;color:#6b7280"
               aria-label="Close">&times;</button>
@@ -641,24 +674,32 @@ if (
         &middot; effective <?= e(partner_rules_effective_date()) ?>
       </p>
 
-      <?php foreach (partner_rules()['rules'] as $rule): ?>
-        <div style="margin-bottom:18px">
-          <div style="display:flex;gap:12px;align-items:flex-start">
-            <span style="flex-shrink:0;width:28px;height:28px;border-radius:50%;background:#0b5ed7;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center">
-              <?= (int) $rule['n'] ?>
-            </span>
-            <div>
-              <div style="font-weight:700;color:#0f172a;margin-bottom:4px"><?= e($rule['title']) ?></div>
-              <div style="font-size:14px;color:#374151;line-height:1.6"><?= e($rule['body']) ?></div>
+      <?php if (empty($rules['rules'])): ?>
+        <p style="color:#b91c1c;font-size:14px">
+          The rules could not be loaded. Please contact support before proceeding.
+        </p>
+      <?php else: ?>
+        <?php foreach ($rules['rules'] as $rule): ?>
+          <div style="margin-bottom:18px">
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <span style="flex-shrink:0;width:28px;height:28px;border-radius:50%;background:#0b5ed7;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center">
+                <?= (int) $rule['n'] ?>
+              </span>
+              <div>
+                <div style="font-weight:700;color:#0f172a;margin-bottom:4px"><?= e($rule['title']) ?></div>
+                <div style="font-size:14px;color:#374151;line-height:1.6"><?= e($rule['body']) ?></div>
+              </div>
             </div>
           </div>
-        </div>
-      <?php endforeach; ?>
+        <?php endforeach; ?>
+      <?php endif; ?>
 
-      <div style="margin-top:24px;padding:14px 16px;background:#f7f9fc;border-left:3px solid #0b5ed7;border-radius:6px;font-size:13.5px;color:#374151;line-height:1.65">
-        <strong style="color:#0f172a">Declaration of compliance.</strong>
-        <?= e(partner_rules()['declaration']) ?>
-      </div>
+      <?php if ($rules['declaration'] !== ''): ?>
+        <div style="margin-top:24px;padding:14px 16px;background:#f7f9fc;border-left:3px solid #0b5ed7;border-radius:6px;font-size:13.5px;color:#374151;line-height:1.65">
+          <strong style="color:#0f172a">Declaration of compliance.</strong>
+          <?= e($rules['declaration']) ?>
+        </div>
+      <?php endif; ?>
     </div>
 
     <div style="padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap">
@@ -681,8 +722,10 @@ document.addEventListener('DOMContentLoaded', function () {
   var checkbox     = document.getElementById('rules_consent');
   var rulesBody    = document.getElementById('rules-body');
 
-  console.log('[rules-modal] elements', { modal:!!modal, openBtn:!!openBtn, closeX:!!closeX,
-                                          closeBtn:!!closeBtn, agreeBtn:!!agreeBtn });
+  console.log('[rules-modal] elements', {
+    modal:!!modal, openBtn:!!openBtn, closeX:!!closeX,
+    closeBtn:!!closeBtn, agreeBtn:!!agreeBtn
+  });
 
   if (!modal || !openBtn) return; // nothing to wire up
 
@@ -696,7 +739,8 @@ document.addEventListener('DOMContentLoaded', function () {
     document.body.style.overflow = '';
   }
 
-  // Use event delegation on document so nothing upstream can swallow the click.
+  // FIX #5 — Event delegation on document so no other script (public.js,
+  // bootstrap, etc.) can swallow the click before it reaches the button.
   document.addEventListener('click', function (e) {
     var t = e.target;
     if (!t || !t.closest) return;
@@ -734,9 +778,17 @@ document.addEventListener('DOMContentLoaded', function () {
   if (hiddenAgreed && hiddenAgreed.value !== '1' && checkbox) {
     checkbox.disabled = true;
   }
+
+  // FIX #6 — Keep the hidden "modal agreed" flag honest if the user
+  // subsequently unticks the consent checkbox.
+  if (checkbox && hiddenAgreed) {
+    checkbox.addEventListener('change', function () {
+      if (!checkbox.checked) hiddenAgreed.value = '';
+    });
+  }
 });
 </script>
-          
+
 <footer class="site-footer">
   <div class="container">
     <div class="footer-grid">
