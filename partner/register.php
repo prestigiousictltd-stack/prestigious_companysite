@@ -610,49 +610,6 @@ $navItems = [
   </div>
 </section>
 
-<script>
-(function(){
-  var stateSel = document.getElementById('state_id');
-  var lgaSel = document.getElementById('lga_id');
-  var typeSel = document.getElementById('partner_type');
-  var bizGroup = document.getElementById('business-name-group');
-
-  function loadLgas(stateId, preselect) {
-    lgaSel.innerHTML = '<option value="">Loading…</option>';
-    if (!stateId) {
-      lgaSel.innerHTML = '<option value="">— Select State first —</option>';
-      return;
-    }
-    fetch(<?= json_encode(root_url('/api/lgas.php')) ?> + '?state_id=' + encodeURIComponent(stateId))
-      .then(function(r){ return r.json(); })
-      .then(function(data){
-        if (!data.ok) { lgaSel.innerHTML = '<option value="">— Unavailable —</option>'; return; }
-        var html = '<option value="">— Select LGA —</option>';
-        data.lgas.forEach(function(l){
-          var sel = (preselect && String(preselect) === String(l.id)) ? ' selected' : '';
-          html += '<option value="' + l.id + '"' + sel + '>' + l.name.replace(/</g,'&lt;') + '</option>';
-        });
-        lgaSel.innerHTML = html;
-      })
-      .catch(function(){ lgaSel.innerHTML = '<option value="">— Load failed —</option>'; });
-  }
-
-  if (stateSel && lgaSel) {
-    var preselect = lgaSel.getAttribute('data-selected') || '';
-    if (stateSel.value) loadLgas(stateSel.value, preselect);
-    stateSel.addEventListener('change', function(){ loadLgas(stateSel.value, ''); });
-  }
-
-  function toggleBiz(){
-    if (!typeSel || !bizGroup) return;
-    bizGroup.style.display = (typeSel.value === 'BUSINESS') ? '' : 'none';
-  }
-  if (typeSel) {
-    toggleBiz();
-    typeSel.addEventListener('change', toggleBiz);
-  }
-})();
-</script>
 
 </main>
 
@@ -787,6 +744,49 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 });
+</script>
+<script>
+(function(){
+  var stateSel = document.getElementById('state_id');
+  var lgaSel = document.getElementById('lga_id');
+  var typeSel = document.getElementById('partner_type');
+  var bizGroup = document.getElementById('business-name-group');
+
+  function loadLgas(stateId, preselect) {
+    lgaSel.innerHTML = '<option value="">Loading…</option>';
+    if (!stateId) {
+      lgaSel.innerHTML = '<option value="">— Select State first —</option>';
+      return;
+    }
+    fetch(<?= json_encode(root_url('/api/lgas.php')) ?> + '?state_id=' + encodeURIComponent(stateId))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (!data.ok) { lgaSel.innerHTML = '<option value="">— Unavailable —</option>'; return; }
+        var html = '<option value="">— Select LGA —</option>';
+        data.lgas.forEach(function(l){
+          var sel = (preselect && String(preselect) === String(l.id)) ? ' selected' : '';
+          html += '<option value="' + l.id + '"' + sel + '>' + l.name.replace(/</g,'&lt;') + '</option>';
+        });
+        lgaSel.innerHTML = html;
+      })
+      .catch(function(){ lgaSel.innerHTML = '<option value="">— Load failed —</option>'; });
+  }
+
+  if (stateSel && lgaSel) {
+    var preselect = lgaSel.getAttribute('data-selected') || '';
+    if (stateSel.value) loadLgas(stateSel.value, preselect);
+    stateSel.addEventListener('change', function(){ loadLgas(stateSel.value, ''); });
+  }
+
+  function toggleBiz(){
+    if (!typeSel || !bizGroup) return;
+    bizGroup.style.display = (typeSel.value === 'BUSINESS') ? '' : 'none';
+  }
+  if (typeSel) {
+    toggleBiz();
+    typeSel.addEventListener('change', toggleBiz);
+  }
+})();
 </script>
 
 <footer class="site-footer">
