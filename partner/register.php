@@ -26,24 +26,24 @@ if (is_post()) {
     csrf_require();
 
     $data = [
-        'full_name'             => trim((string) ($_POST['full_name'] ?? '')),
-        'email'                 => strtolower(trim((string) ($_POST['email'] ?? ''))),
-        'phone'                 => trim((string) ($_POST['phone'] ?? '')),
-        'nin_number'            => preg_replace('/\D/', '', (string) ($_POST['nin_number'] ?? '')),
-        'partner_type'          => strtoupper((string) ($_POST['partner_type'] ?? 'INDIVIDUAL')),
-        'business_name'         => trim((string) ($_POST['business_name'] ?? '')),
-        'address'               => trim((string) ($_POST['address'] ?? '')),
-        'state_id'              => (int) ($_POST['state_id'] ?? 0),
-        'lga_id'                => (int) ($_POST['lga_id'] ?? 0),
-        'password'              => (string) ($_POST['password'] ?? ''),
-        'password_confirmation' => (string) ($_POST['password_confirmation'] ?? ''),
-    ];
+    'full_name'           => trim((string) ($_POST['full_name'] ?? '')),
+    'email'               => strtolower(trim((string) ($_POST['email'] ?? ''))),
+    'phone'               => trim((string) ($_POST['phone'] ?? '')),
+    'nin_number'          => preg_replace('/\D/', '', (string) ($_POST['nin_number'] ?? '')),
+    'partner_type'        => strtoupper((string) ($_POST['partner_type'] ?? 'INDIVIDUAL')),
+    'business_name'       => trim((string) ($_POST['business_name'] ?? '')),
+    'address'             => trim((string) ($_POST['address'] ?? '')),
+    'state_id'            => (int) ($_POST['state_id'] ?? 0),
+    'lga_id'              => (int) ($_POST['lga_id'] ?? 0),
+    'password'            => (string) ($_POST['password'] ?? ''),
+    'password_confirmation' => (string) ($_POST['password_confirmation'] ?? ''),
+];
 
     if (!in_array($data['partner_type'], ['INDIVIDUAL', 'BUSINESS'], true)) {
         $data['partner_type'] = 'INDIVIDUAL';
     }
 
-    $errors = validate($data, [
+        $errors = validate($data, [
         'full_name'             => ['required', 'min_len:2', 'max_len:150'],
         'email'                 => ['required', 'email', 'max_len:190'],
         'phone'                 => ['required', 'phone_ng', 'max_len:20'],
@@ -56,20 +56,16 @@ if (is_post()) {
         'password'              => ['required', 'password', 'same:password_confirmation'],
         'password_confirmation' => ['required'],
     ], [
-        'full_name'   => 'Full Name',
-        'email'       => 'Email Address',
-        'phone'       => 'Phone Number',
-        'nin_number'  => 'NIN Number',
-        'state_id'    => 'State',
-        'lga_id'      => 'LGA',
-        'password'    => 'Password',
+        'full_name' => 'Full Name', 'email' => 'Email Address', 'phone' => 'Phone Number',
+        'nin_number' => 'NIN Number', 'state_id' => 'State', 'lga_id' => 'LGA',
+        'password' => 'Password',
     ]);
 
     if ($data['partner_type'] === 'BUSINESS' && $data['business_name'] === '') {
         $errors['business_name'] = 'Business Name is required for business partners.';
     }
 
-    // Verify state / lga relationship — only when an LGA was actually chosen.
+       // Verify state / lga relationship — only when an LGA was actually chosen.
     if (empty($errors['state_id']) && $data['lga_id'] > 0) {
         $stmt = db()->prepare('SELECT 1 FROM lgas WHERE id = :lid AND state_id = :sid AND is_active = 1 LIMIT 1');
         $stmt->execute([':lid' => $data['lga_id'], ':sid' => $data['state_id']]);
@@ -94,7 +90,7 @@ if (is_post()) {
         }
     }
 
-    // Required profile image
+      // Required profile image
     $profileImagePath = null;
     $file = $_FILES['profile_image'] ?? null;
     $hasFile = is_array($file) && (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
@@ -140,6 +136,7 @@ if (is_post()) {
                     if ($mime !== $allowedExt[$ext]) {
                         $errors['profile_image'] = 'File type does not match the file extension.';
                     } else {
+                        // Basic image dimension sanity check
                         $dimInfo = @getimagesize((string) $file['tmp_name']);
                         if ($dimInfo === false) {
                             $errors['profile_image'] = 'File is not a readable image.';
@@ -198,7 +195,7 @@ if (is_post()) {
                 ':addr'   => $data['address'] !== '' ? $data['address'] : null,
                 ':img'    => $profileImagePath,
                 ':sid'    => $data['state_id'],
-                ':lid'    => $data['lga_id'] > 0 ? $data['lga_id'] : null,
+                               ':lid'    => $data['lga_id'] > 0 ? $data['lga_id'] : null,
                 ':status' => 'PENDING',
                 ':ca'     => now_dt(),
             ]);
@@ -243,32 +240,11 @@ if (is_post()) {
     flash_old($_POST);
 }
 
-// Safe-load partner_rules() BEFORE any HTML output so a TypeError can never
-// truncate the page or hide the modal. Client-side only — nothing is submitted.
-$rules = null;
-try {
-    $candidate = partner_rules();
-    if (
-        is_array($candidate)
-        && array_key_exists('title', $candidate)
-        && isset($candidate['rules']) && is_array($candidate['rules'])
-        && array_key_exists('declaration', $candidate)
-    ) {
-        $rules = $candidate;
-    } else {
-        error_log('[partner register] partner_rules() bad shape: ' . var_export($candidate, true));
-    }
-} catch (\Throwable $ex) {
-    error_log('[partner register] partner_rules() threw: ' . $ex->getMessage());
-}
-
-if ($rules === null) {
-    $rules = ['title' => 'Rules and Regulations', 'rules' => [], 'declaration' => ''];
-}
-
 $page_title       = 'Become a Partner';
 $page_description = 'Register as a partner of Prestigious ICT Investment Limited.';
 $active_nav       = 'partners';
+
+
 
 /**
  * Public site header.
@@ -319,7 +295,155 @@ $navItems = [
 <link rel="stylesheet" href="<?= e(url('/assets/css/public.css')) ?>">
 
 <style>
-/* Contrast fix for the rules button on the silver page background */
+/* ---------- Rules and Regulations card ---------- */
+.rules-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-top: 4px solid #0b5ed7;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 22px rgba(11, 94, 215, .10);
+}
+.rules-card__head {
+    padding: 22px 26px 18px;
+    background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    border-bottom: 1px solid #e5e7eb;
+}
+.rules-card__eyebrow {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #b91c1c;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 999px;
+    padding: 4px 10px;
+    margin-bottom: 10px;
+}
+.rules-card__title {
+    margin: 0 0 6px;
+    font-size: 19px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.3;
+}
+.rules-card__sub {
+    margin: 0;
+    font-size: 13.5px;
+    color: #4b5563;
+    line-height: 1.6;
+}
+.rules-card__sub strong { color: #0f172a; }
+
+.rules-card__list {
+    padding: 6px 26px 0;
+}
+.rule {
+    display: flex;
+    gap: 14px;
+    padding: 16px 0;
+    border-bottom: 1px dashed #e5e7eb;
+}
+.rule:last-child { border-bottom: 0; }
+.rule__num {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #0b5ed7;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(11, 94, 215, .30);
+}
+.rule__title {
+    font-weight: 800;
+    color: #0f172a;
+    font-size: 13px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    margin: 4px 0 6px;
+}
+.rule__body {
+    margin: 0;
+    font-size: 13.5px;
+    color: #4b5563;
+    line-height: 1.65;
+}
+
+.rules-card__declaration {
+    margin: 14px 26px 0;
+    padding: 14px 16px;
+    background: #f1f5f9;
+    border-left: 3px solid #0b5ed7;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #374151;
+    line-height: 1.7;
+}
+.rules-card__declaration strong { color: #0f172a; }
+
+.rules-card__consent {
+    margin-top: 18px;
+    padding: 18px 26px 22px;
+    border-top: 1px solid #e5e7eb;
+    background: #fafbfc;
+}
+.consent-box {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    cursor: pointer;
+    padding: 14px 16px;
+    background: #ffffff;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.consent-box:hover {
+    border-color: #0b5ed7;
+    box-shadow: 0 2px 10px rgba(11, 94, 215, .12);
+}
+.consent-box input[type="checkbox"] {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: #0b5ed7;
+    cursor: pointer;
+}
+.consent-box span {
+    font-size: 13.5px;
+    color: #374151;
+    line-height: 1.6;
+}
+.consent-box span strong { color: #0f172a; }
+
+.consent-box.is-invalid {
+    border-color: #dc2626;
+    background: #fef2f2;
+    animation: consentShake .35s ease;
+}
+@keyframes consentShake {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-4px); }
+    75%      { transform: translateX(4px); }
+}
+.consent-error {
+    display: none;
+    margin: 10px 0 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #b91c1c;
+}
+.consent-error.is-visible { display: block; }
+
+/* Rules button contrast fix (kept from earlier) */
 #open-rules-btn {
     background-color: #ffffff;
     color: #0b5ed7;
@@ -406,7 +530,7 @@ $navItems = [
         <div class="alert alert-danger"><?= e($errors['_global']) ?></div>
       <?php endif; ?>
 
-      <form method="post" enctype="multipart/form-data" novalidate>
+      <form method="post" enctype="multipart/form-data" novalidate id="partner-register-form">
         <?= csrf_field() ?>
 
         <div class="reg-section">
@@ -512,42 +636,130 @@ $navItems = [
           </div>
         </div>
 
-        <!-- Rules and Regulations — client-side UX only. Nothing here is
-             validated or stored on the server. -->
-        <div class="reg-section" id="rules-consent-section">
-          <h2>Rules and Regulations <span style="color:#dc2626">*</span></h2>
+        <!-- =========================================================
+             RULES AND REGULATIONS — displayed inline, before the
+             Cancel / Submit buttons. Consent is enforced only in the
+             browser (UI); nothing about the rules is submitted to or
+             validated by the server.
+             ========================================================= -->
+        <div class="reg-section" id="rules-section">
+          <div class="rules-card">
+            <div class="rules-card__head">
+              <span class="rules-card__eyebrow">Mandatory &mdash; Read Before Submitting</span>
+              <h2 class="rules-card__title">10 Rules and Regulations Governing NIN Enrolment Partners</h2>
+              <p class="rules-card__sub">
+                Every partner operating under
+                <strong>PRESTIGIOUS ICT INVESTMENT LIMITED</strong>
+                is required to read, understand, and accept the following rules.
+                These rules form part of your operational obligations as an
+                NIN Enrolment Partner.
+              </p>
+            </div>
 
-          <p style="font-size:14px;color:var(--text);margin:0 0 14px">
-            Every partner operating under
-            <strong><?= e((string) setting('company_name', 'Prestigious ICT Investment Limited')) ?></strong>
-            is required to read and accept the
-            <strong>10 Rules and Regulations Governing NIN Enrolment Partners</strong>
-            before registration.
-          </p>
+            <div class="rules-card__list">
+              <div class="rule">
+                <span class="rule__num">1</span>
+                <div>
+                  <p class="rule__title">No Infraction of Any Kind</p>
+                  <p class="rule__body">Partners must not engage in any act, omission, or conduct that violates the Nigeria Data Protection Act, NIMC regulations, the partnership agreement, or any applicable Nigerian law. Any infraction, whether intentional or negligent, shall be treated as a breach of the partnership.</p>
+                </div>
+              </div>
 
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
-            <button type="button" class="btn btn-outline" id="open-rules-btn">
-              Read the 10 Rules and Regulations
-            </button>
-            <span class="muted" style="font-size:13px">
-              Version <?= e(partner_rules_version()) ?>
-              &middot; effective <?= e(partner_rules_effective_date()) ?>
-            </span>
-          </div>
+              <div class="rule">
+                <span class="rule__num">2</span>
+                <div>
+                  <p class="rule__title">No Extortion, Bribery, or Corruption</p>
+                  <p class="rule__body">Partners must not demand, solicit, or accept unauthorised payments, gifts, or favours from enrollees or any other party during NIN enrolment or verification. All charges must be limited to officially approved fees, and every transaction must be receipted.</p>
+                </div>
+              </div>
 
-          <input type="hidden" id="rules_modal_agreed" value="">
+              <div class="rule">
+                <span class="rule__num">3</span>
+                <div>
+                  <p class="rule__title">Strict Confidentiality and Data Protection</p>
+                  <p class="rule__body">All enrollee data &mdash; including biometric, demographic, and contact information &mdash; is confidential and remains the property of NIMC and the Federal Republic of Nigeria. Partners must safeguard this data, never copy, retain, share, or transmit it outside authorised channels, and must report any suspected data breach immediately.</p>
+                </div>
+              </div>
 
-          <div class="form-group" style="margin:0">
-            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:14px;line-height:1.5">
-              <input type="checkbox" id="rules_consent" value="1"
-                     style="margin-top:3px;flex-shrink:0">
-              <span>
-                I confirm that I have read, understood, and agree to the
-                10 Rules and Regulations Governing NIN Enrolment Partners.
-                I understand that failure to comply may result in action
-                under the partnership agreement and applicable law.
-              </span>
-            </label>
+              <div class="rule">
+                <span class="rule__num">4</span>
+                <div>
+                  <p class="rule__title">Prohibition of Identity Fraud and Duplicate Enrolment</p>
+                  <p class="rule__body">Partners must not enrol any individual using false, forged, or borrowed identity documents. No partner shall create, facilitate, or participate in duplicate, multiple, or ghost enrolments. Any suspicion of identity fraud must be stopped and reported at once.</p>
+                </div>
+              </div>
+
+              <div class="rule">
+                <span class="rule__num">5</span>
+                <div>
+                  <p class="rule__title">Authorised Use of Enrolment Equipment and Systems</p>
+                  <p class="rule__body">Enrolment kits, credentials, and system access provided by the company or NIMC must be used strictly for authorised NIN enrolment activities. Equipment must not be moved, lent, duplicated, or operated outside the approved location without prior written approval.</p>
+                </div>
+              </div>
+
+              <div class="rule">
+                <span class="rule__num">6</span>
+                <div>
+                  <p class="rule__title">Accuracy and Integrity of Enrolment Records</p>
+                  <p class="rule__body">Partners must capture enrollee data accurately and honestly. Falsifying, altering, omitting, or fabricating enrolment records &mdash; including names, dates of birth, addresses, and biometrics &mdash; is strictly prohibited and will attract full legal and contractual consequences.</p>
+                </div>
+              </div>
+
+              <div class="rule">
+                <span class="rule__num">7</span>
+                <div>
+                  <p class="rule__title">Compliance with NIMC Authorisation and Company Directives</p>
+                  <p class="rule__body">Partners must operate only under a valid, current NIMC authorisation and must follow all directives, circulars, and updates issued by NIMC or by PRESTIGIOUS ICT INVESTMENT LIMITED. Failure to keep authorisation current will result in immediate suspension of operations.</p>
+                </div>
+              </div>
+
+              <div class="rule">
+                <span class="rule__num">8</span>
+                <div>
+                  <p class="rule__title">Prohibition of Unauthorised Collaboration and Transfer of Authority</p>
+                  <p class="rule__body">Partners shall not sub-contract, franchise, or transfer their enrolment privileges to any third party. Collaboration with unauthorised agents, touts, or cyber caf&eacute;s for NIN-related services is strictly prohibited.</p>
+                </div>
+              </div>
+
+              <div class="rule">
+                <span class="rule__num">9</span>
+                <div>
+                  <p class="rule__title">Transparency</p>
+                  <p class="rule__body">Partners must display approved fees, maintain accurate daily records, issue receipts for all transactions, and cooperate fully with audits, inspections, and investigations conducted by NIMC, the company, or any lawful authority.</p>
+                </div>
+              </div>
+
+              <div class="rule">
+                <span class="rule__num">10</span>
+                <div>
+                  <p class="rule__title">Mandatory Reporting and Consequences of Violation</p>
+                  <p class="rule__body">Partners must promptly report any violation, suspicious activity, equipment malfunction, or security incident to the company. Violation of any of these rules may result in suspension, termination of the partnership, forfeiture of deposits, and referral to law enforcement or NIMC for further action.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="rules-card__declaration">
+              <strong>Declaration of Compliance.</strong>
+              All subordinate partners operating under PRESTIGIOUS ICT INVESTMENT LIMITED
+              shall be required to read, understand, and comply with these rules as part
+              of their operational responsibilities. Failure to comply may result in action
+              under the partnership agreement and applicable law.
+            </div>
+
+            <div class="rules-card__consent">
+              <label class="consent-box" id="consent-box" for="rules_consent">
+                <input type="checkbox" id="rules_consent" required>
+                <span>
+                  I confirm that I have read, understood, and agree to the
+                  <strong>10 Rules and Regulations Governing NIN Enrolment Partners</strong>.
+                  I understand that failure to comply may result in action under the
+                  partnership agreement and applicable law.
+                </span>
+              </label>
+              <p class="consent-error" id="consent-error" role="alert">
+                You must read and accept the 10 Rules and Regulations before submitting your application.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -566,7 +778,6 @@ $navItems = [
   </div>
 </section>
 
-<!-- Your existing LGA / partner-type script, unchanged -->
 <script>
 (function(){
   var stateSel = document.getElementById('state_id');
@@ -580,7 +791,7 @@ $navItems = [
       lgaSel.innerHTML = '<option value="">— Select State first —</option>';
       return;
     }
-    fetch(<?= json_encode(root_url('/api/lgas.php')) ?> + '?state_id=' + encodeURIComponent(stateId))
+   fetch(<?= json_encode(root_url('/api/lgas.php')) ?> + '?state_id=' + encodeURIComponent(stateId))
       .then(function(r){ return r.json(); })
       .then(function(data){
         if (!data.ok) { lgaSel.innerHTML = '<option value="">— Unavailable —</option>'; return; }
@@ -609,124 +820,44 @@ $navItems = [
     typeSel.addEventListener('change', toggleBiz);
   }
 })();
+
+/* --------------------------------------------------------------
+   Rules consent — UI-only enforcement.
+   The form has novalidate, so `required` on the checkbox is
+   ignored by the browser; we block submission here instead.
+   -------------------------------------------------------------- */
+(function () {
+  var form   = document.getElementById('partner-register-form');
+  var cb     = document.getElementById('rules_consent');
+  var box    = document.getElementById('consent-box');
+  var errMsg = document.getElementById('consent-error');
+  var section = document.getElementById('rules-section');
+  if (!form || !cb || !box) return;
+
+  form.addEventListener('submit', function (e) {
+    if (!cb.checked) {
+      e.preventDefault();
+      e.stopPropagation();
+      box.classList.add('is-invalid');
+      if (errMsg) errMsg.classList.add('is-visible');
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      cb.focus({ preventScroll: true });
+      return false;
+    }
+  }, true); // useCapture so we beat other submit listeners
+
+  cb.addEventListener('change', function () {
+    if (cb.checked) {
+      box.classList.remove('is-invalid');
+      if (errMsg) errMsg.classList.remove('is-visible');
+    }
+  });
+})();
 </script>
 
 </main>
-
-<!-- Rules modal — placed outside the form, after </main> -->
-<div id="rules-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(15,23,42,.55)">
-  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(720px,92vw);max-height:86vh;background:#fff;border-radius:12px;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.4)">
-    <div style="padding:18px 24px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;gap:12px">
-      <h2 style="margin:0;font-size:17px"><?= e($rules['title']) ?></h2>
-      <button type="button" id="rules-close-x"
-              style="border:0;background:transparent;font-size:24px;line-height:1;cursor:pointer;color:#6b7280"
-              aria-label="Close">&times;</button>
-    </div>
-
-    <div id="rules-body" style="padding:20px 24px;overflow-y:auto;flex:1">
-      <p style="font-size:13.5px;color:#6b7280;margin:0 0 20px">
-        Version <?= e(partner_rules_version()) ?>
-        &middot; effective <?= e(partner_rules_effective_date()) ?>
-      </p>
-
-      <?php if (empty($rules['rules'])): ?>
-        <p style="color:#b91c1c;font-size:14px">
-          The rules could not be loaded. Please contact support before proceeding.
-        </p>
-      <?php else: ?>
-        <?php foreach ($rules['rules'] as $rule): ?>
-          <div style="margin-bottom:18px">
-            <div style="display:flex;gap:12px;align-items:flex-start">
-              <span style="flex-shrink:0;width:28px;height:28px;border-radius:50%;background:#0b5ed7;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center">
-                <?= (int) $rule['n'] ?>
-              </span>
-              <div>
-                <div style="font-weight:700;color:#0f172a;margin-bottom:4px"><?= e($rule['title']) ?></div>
-                <div style="font-size:14px;color:#374151;line-height:1.6"><?= e($rule['body']) ?></div>
-              </div>
-            </div>
-          </div>
-        <?php endforeach; ?>
-      <?php endif; ?>
-
-      <?php if ($rules['declaration'] !== ''): ?>
-        <div style="margin-top:24px;padding:14px 16px;background:#f7f9fc;border-left:3px solid #0b5ed7;border-radius:6px;font-size:13.5px;color:#374151;line-height:1.65">
-          <strong style="color:#0f172a">Declaration of compliance.</strong>
-          <?= e($rules['declaration']) ?>
-        </div>
-      <?php endif; ?>
-    </div>
-
-    <div style="padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap">
-      <button type="button" id="rules-close-btn" class="btn btn-outline">Close</button>
-      <button type="button" id="rules-agree-btn" class="btn btn-primary">
-        I have read these rules &mdash; enable consent
-      </button>
-    </div>
-  </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  var modal        = document.getElementById('rules-modal');
-  var openBtn      = document.getElementById('open-rules-btn');
-  var hiddenAgreed = document.getElementById('rules_modal_agreed');
-  var checkbox     = document.getElementById('rules_consent');
-  var rulesBody    = document.getElementById('rules-body');
-
-  if (!modal || !openBtn) return;
-
-  function showModal() {
-    modal.style.display = 'block';
-    document.body.style.overflow = 'hidden';
-    if (rulesBody) rulesBody.scrollTop = 0;
-  }
-  function hideModal() {
-    modal.style.display = 'none';
-    document.body.style.overflow = '';
-  }
-
-  // Event delegation on document — immune to any other script that might
-  // stopPropagation on clicks.
-  document.addEventListener('click', function (e) {
-    var t = e.target;
-    if (!t || !t.closest) return;
-
-    if (t.closest('#open-rules-btn')) {
-      e.preventDefault();
-      e.stopPropagation();
-      showModal();
-      return;
-    }
-    if (t.closest('#rules-close-x') || t.closest('#rules-close-btn')) {
-      e.preventDefault();
-      hideModal();
-      return;
-    }
-    if (t.closest('#rules-agree-btn')) {
-      e.preventDefault();
-      if (hiddenAgreed) hiddenAgreed.value = '1';
-      if (checkbox) {
-        checkbox.disabled = false;
-        checkbox.checked  = true;
-        checkbox.focus();
-      }
-      hideModal();
-      return;
-    }
-    if (t === modal) { hideModal(); }
-  });
-
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && modal.style.display === 'block') hideModal();
-  });
-
-  // Lock the consent checkbox until the user has opened the modal and agreed.
-  if (hiddenAgreed && hiddenAgreed.value !== '1' && checkbox) {
-    checkbox.disabled = true;
-  }
-});
-</script>
 
 <footer class="site-footer">
   <div class="container">
